@@ -42,3 +42,8 @@ yarn-error.*
 
 # Supabase local temp
 supabase/.temp/
+
+# DB backups (DO NOT COMMIT)
+supabase/full_backup.sql
+supabase/*.dump
+backups/
