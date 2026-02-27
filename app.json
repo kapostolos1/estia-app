@@ -1,0 +1,58 @@
+{
+  "expo": {
+    "name": "estia-appointments",
+    "slug": "estia-appointments",
+    "version": "1.0.6",
+    "orientation": "portrait",
+    "scheme": "estiaapp",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.estiaapp.appointments"
+    },
+    "android": {
+      "package": "com.estiaapp.appointments",
+      "permissions": [
+        "com.android.vending.BILLING"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "estiaapp"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-web-browser"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "b926fc6d-4e1c-4988-8f37-83434fb38d29"
+      }
+    }
+  }
+}

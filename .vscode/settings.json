@@ -1,0 +1,8 @@
+{
+  "deno.enable": true,
+  "deno.unstable": [],
+  "deno.lint": true,
+  "deno.importMap": "supabase/functions/deno.json",
+  "deno.config": "supabase/functions/deno.json",
+  "typescript.validate.enable": false
+}
