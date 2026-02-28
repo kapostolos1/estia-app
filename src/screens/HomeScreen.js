@@ -741,8 +741,13 @@ export default function HomeScreen({ navigation }) {
               />
             )}
 
-            <Pressable style={[styles.inviteBtnCancel, { marginTop: 12 }]} onPress={() => setDayOpen(false)}>
-              <Text style={{ color: "#D1FAE5", fontWeight: "900" }}>{t("common.close") || "Κλείσιμο"}</Text>
+            <Pressable
+              style={[styles.inviteBtnCancel, styles.dayCloseBtn]}
+              onPress={() => setDayOpen(false)}
+            >
+              <Text style={styles.dayCloseText}>
+                {t("common.close") || "Close"}
+              </Text>
             </Pressable>
           </Pressable>
         </Pressable>
@@ -1003,7 +1008,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   calEmoji: { fontSize: 18 },
-
+  
   // Tabs
   switchRow: {
     flexDirection: "row",
@@ -1166,6 +1171,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
   },
+  
   dayTitle: { color: "#fff", fontSize: 18, fontWeight: "900" },
   dayCount: { color: "#9FE6C1", marginTop: 6, fontWeight: "800" },
   dayEmpty: { color: "#D1FAE5", marginTop: 10 },
@@ -1196,6 +1202,16 @@ const styles = StyleSheet.create({
     padding: 14,
     borderWidth: 1,
     borderColor: "#0F3A27",
+  },
+  dayCloseBtn: {
+    marginTop: 12,
+    flex: 0,
+    alignSelf: "stretch",
+  },
+  dayCloseText: {
+    color: "#D1FAE5",
+    fontWeight: "900",
+    fontSize: 16,
   },
   calHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
   calTitle: { color: "#fff", fontWeight: "900", fontSize: 16 },
