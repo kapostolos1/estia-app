@@ -15,6 +15,7 @@ export default {
       "November",
       "December"
     ],
+    weekdays: ["M","T","W","T","F","S","S"],
   },
 
   oauthInvite: {

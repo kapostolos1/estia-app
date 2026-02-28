@@ -157,7 +157,7 @@ function CalendarModal({ visible, onClose, onPick, countsByDay, initialDate }) {
     return cells;
   }, [cursor, countsByDay]);
 
-  const weekdays = ["Δ", "Τ", "Τ", "Π", "Π", "Σ", "Κ"];
+  const weekdays = t("calendar.weekdays"); // array 7
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
