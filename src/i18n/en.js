@@ -259,6 +259,7 @@ export default {
   },
 
   common: {
+    close: "Close",
     loading: "Loading...",
     new: "New",
     cancel: "Cancel",
@@ -274,6 +275,8 @@ export default {
   },
 
   home: {
+    dayCount: "Appointments",
+    noAppointmentsDay: "No appointments for this day.",
     subscriptionExpiredTitle: "Subscription expired",
     connectBusiness: "Connect to business",
     checkingConnection: "Please wait — checking connection...",
