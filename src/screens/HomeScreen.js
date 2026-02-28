@@ -72,7 +72,7 @@ export default function HomeScreen({ navigation }) {
   } = useAppointments();
 
 
-  const { lang } = useLanguage();
+  const { lang, changeLang } = useLanguage();
 
   const {
     smsTemplateEl,
@@ -521,70 +521,71 @@ return (
 
       {/* Header */}
 <View style={styles.topRow}>
-  {/* LEFT: Title + badges */}
-  <View style={styles.leftHeader}>
-    <Text
-      style={styles.title}
-      numberOfLines={1}
-      ellipsizeMode="tail"
-    >
-      {tab === "today"
-        ? t("home.tabs.today")
-        : tab === "upcoming"
-        ? t("home.tabs.upcoming")
-        : tab === "history"
-        ? t("home.tabs.history")
-        : t("home.tabs.search")}
-    </Text>
+  {/* LEFT: Flags πάνω από το μεγάλο Title + badges */}
+  <View style={styles.leftHeaderCol}>
+    {/* ✅ Flags ΠΑΝΩ από το Today (δίπλα-δίπλα) */}
+    <View style={styles.langRowTop}>
+      <Pressable
+        onPress={() => changeLang("el")}
+        style={[styles.langBtnRound, lang === "el" && styles.langBtnActive]}
+        hitSlop={10}
+      >
+        <Text style={styles.langEmoji}>🇬🇷</Text>
+      </Pressable>
 
-    {tab === "today" && (
-      <View style={styles.badgesRow}>
-        <View style={styles.badgeDark}>
-          <Text style={styles.badgeDarkText}>{todayTotalCount}</Text>
+      <Pressable
+        onPress={() => changeLang("en")}
+        style={[styles.langBtnRound, lang === "en" && styles.langBtnActive]}
+        hitSlop={10}
+      >
+        <Text style={styles.langEmoji}>🇬🇧</Text>
+      </Pressable>
+    </View>
+
+    {/* Title + badges (2η γραμμή) */}
+    <View style={styles.leftHeaderRow}>
+      <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
+        {tab === "today"
+          ? t("home.tabs.today")
+          : tab === "upcoming"
+          ? t("home.tabs.upcoming")
+          : tab === "history"
+          ? t("home.tabs.history")
+          : t("home.tabs.search")}
+      </Text>
+
+      {tab === "today" && (
+        <View style={styles.badgesRow}>
+          <View style={styles.badgeDark}>
+            <Text style={styles.badgeDarkText}>{todayTotalCount}</Text>
+          </View>
+          <View style={styles.badgeGreen}>
+            <Text style={styles.badgeGreenText}>{todayRemainingCount}</Text>
+          </View>
         </View>
-        <View style={styles.badgeGreen}>
-          <Text style={styles.badgeGreenText}>{todayRemainingCount}</Text>
-        </View>
-      </View>
-    )}
+      )}
+    </View>
   </View>
-  
+
   {/* RIGHT: + New then Menu */}
   <View style={styles.rightHeader}>
     <Pressable
-      style={[
-        styles.addBtn,
-        (!ready || !businessId || !canCreate) && { opacity: 0.45 },
-      ]}
+      style={[styles.addBtn, (!ready || !businessId || !canCreate) && { opacity: 0.45 }]}
       onPress={() => {
         if (!canCreate) {
-          Alert.alert(
-            t("subscription.expiredTitle"),
-            t("subscription.expiredDialogText")
-          );
+          Alert.alert(t("subscription.expiredTitle"), t("subscription.expiredDialogText"));
           return;
         }
         navigation.navigate("NewAppointment");
       }}
       disabled={!ready || !businessId || !canCreate}
-      accessibilityRole="button"
-      accessibilityLabel={t("home.addNew")}
     >
-      <Text
-        style={styles.addText}
-        numberOfLines={1}
-        ellipsizeMode="tail"
-      >
+      <Text style={styles.addText} numberOfLines={1} ellipsizeMode="tail">
         {t("home.addNew")}
       </Text>
     </Pressable>
 
-    <Pressable
-      style={styles.menuBtn}
-      onPress={() => setMenuOpen(true)}
-      accessibilityRole="button"
-      accessibilityLabel={t("home.menu.title") || "Μενού"}
-    >
+    <Pressable style={styles.menuBtn} onPress={() => setMenuOpen(true)}>
       <Text style={styles.menuText}>≡</Text>
     </Pressable>
   </View>
@@ -721,7 +722,7 @@ const styles = StyleSheet.create({
   // Header
   topRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start", // ✅ (γιατί αριστερά έχει 2 “γραμμές”: flags + title)
     justifyContent: "space-between",
     gap: 10,
   },
@@ -758,7 +759,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   addText: { color: "#052016", fontWeight: "900" },
-
+  langRowTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 6,        // απόσταση flags -> Today
+    alignSelf: "flex-start" // να ΜΗΝ τεντώνει/παίρνει πλάτος (και να μη φαίνεται “πλαίσιο”)
+  },
   // Tabs
   switchRow: {
     flexDirection: "row",
@@ -853,6 +860,36 @@ inviteBtnOkText: {
     padding: 12,
     marginBottom: 10,
   },
+  leftHeaderCol: {
+  flex: 1,
+  minWidth: 0,
+  flexDirection: "column",
+},
+
+leftHeaderRow: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 10,
+  minWidth: 0,
+},
+
+langBtnRound: {
+  width: 40,
+  height: 40,
+  borderRadius: 999,
+  backgroundColor: "#062417",
+  borderWidth: 1,
+  borderColor: "#0F3A27",
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+langBtnActive: {
+  borderColor: "#22C55E",
+  borderWidth: 2,
+},
+
+langEmoji: { fontSize: 18 },
 
   empty: { marginTop: 20, color: "#D1FAE5" },
 
