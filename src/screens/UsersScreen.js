@@ -1,6 +1,15 @@
 // src/screens/UsersScreen.js
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, FlatList, Pressable, StyleSheet, Alert, Modal, TouchableOpacity } from "react-native";
+import { useCallback, useMemo, useState } from "react";
+import {
+  View,
+  Text,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Alert,
+  Modal,
+  TouchableOpacity,
+} from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 
 import { supabase } from "../lib/supabase";
@@ -16,7 +25,7 @@ function makeCode(len = 6) {
 }
 
 export default function UsersScreen() {
-  const { businessId, myRole, ready, refresh } = useAppointments();
+  const { businessId, myRole, ready } = useAppointments();
   const isOwner = myRole === "owner";
 
   const [loading, setLoading] = useState(false);
@@ -24,10 +33,14 @@ export default function UsersScreen() {
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [inviteCode, setInviteCode] = useState("");
 
+  // ✅ για να μην εμφανίζει "empty" πριν τελειώσει το 1ο load
+  const [initialized, setInitialized] = useState(false);
+
   const canUse = ready && businessId && isOwner;
 
   const loadMembers = useCallback(async () => {
     if (!businessId) return;
+
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -37,23 +50,22 @@ export default function UsersScreen() {
         .order("created_at", { ascending: true });
 
       if (error) throw error;
+
       setMembers(data || []);
     } catch (e) {
       Alert.alert(t("errors.errorTitle"), e?.message || t("users.errors.loadUsers"));
     } finally {
       setLoading(false);
+      setInitialized(true);
     }
   }, [businessId]);
 
+  // ✅ ΜΟΝΟ αυτό. Τέρμα τα διπλά fetch.
   useFocusEffect(
     useCallback(() => {
       loadMembers();
     }, [loadMembers])
   );
-
-  useEffect(() => {
-    if (typeof refresh === "function") refresh();
-  }, [refresh]);
 
   const ownerRow = useMemo(() => members.find((m) => m.role === "owner"), [members]);
 
@@ -93,7 +105,11 @@ export default function UsersScreen() {
       }),
       [
         { text: t("common.cancel"), style: "cancel" },
-        { text: t("users.removeBtn"), style: "destructive", onPress: () => removeMember(member) },
+        {
+          text: t("users.removeBtn"),
+          style: "destructive",
+          onPress: () => removeMember(member),
+        },
       ]
     );
   }
@@ -156,8 +172,17 @@ export default function UsersScreen() {
   return (
     <View style={styles.container}>
       {/* Invite Modal */}
-      <Modal visible={inviteModalOpen} transparent animationType="fade" onRequestClose={() => setInviteModalOpen(false)}>
-        <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setInviteModalOpen(false)}>
+      <Modal
+        visible={inviteModalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setInviteModalOpen(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setInviteModalOpen(false)}
+        >
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>{t("users.inviteTitle")}</Text>
             <Text style={styles.modalText}>{t("users.inviteText")}</Text>
@@ -176,7 +201,11 @@ export default function UsersScreen() {
       <View style={styles.topRow}>
         <Text style={styles.title}>{t("users.title")}</Text>
 
-        <Pressable style={[styles.addBtn, loading && { opacity: 0.7 }]} onPress={createInvite} disabled={loading}>
+        <Pressable
+          style={[styles.addBtn, loading && { opacity: 0.7 }]}
+          onPress={createInvite}
+          disabled={loading}
+        >
           <Text style={styles.addText}>{t("users.addStaffCode")}</Text>
         </Pressable>
       </View>
@@ -200,7 +229,14 @@ export default function UsersScreen() {
         keyExtractor={(item) => item.id}
         refreshing={loading}
         onRefresh={loadMembers}
-        ListEmptyComponent={<Text style={styles.empty}>{t("users.emptyUsers")}</Text>}
+        // ✅ Μην δείχνεις empty πριν ολοκληρωθεί το πρώτο fetch
+        ListEmptyComponent={
+          !initialized ? (
+            <Text style={styles.empty}>{t("common.loading")}</Text>
+          ) : (
+            <Text style={styles.empty}>{t("users.emptyUsers")}</Text>
+          )
+        }
         renderItem={({ item }) => (
           <View style={styles.card}>
             <View style={{ flex: 1, paddingRight: 10 }}>
