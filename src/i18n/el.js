@@ -250,8 +250,23 @@ export default {
     waitText: "Ολοκληρώνεται η διαδικασία ασφαλείας. Δοκίμασε ξανά σε 1-2 δευτερόλεπτα.",
   },
 
+  contact: {
+    title: "Επικοινωνία",
+    subtitle: "Διάλεξε τρόπο επικοινωνίας με την υποστήριξη.",
+    emailLabel: "Email",
+    phoneLabel: "Τηλέφωνο",
+    sendEmail: "Στείλε email",
+    call: "Κλήση",
+    copy: "Αντιγραφή",
+    noEmailAppTitle: "Δεν βρέθηκε εφαρμογή email",
+    noEmailAppMsg: "Ρύθμισε ένα email στο κινητό ή αντέγραψε τη διεύθυνση.",
+    noCallTitle: "Δεν υποστηρίζεται κλήση",
+    noCallMsg: "Η συσκευή δεν μπορεί να πραγματοποιήσει κλήσεις.",
+  },
+
   common: {
     close: "Κλείσιμο",
+    copied: "Αντιγράφηκε",
     loading: "Φόρτωση...",
     new: "Νέο",
     cancel: "Άκυρο",

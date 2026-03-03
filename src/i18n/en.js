@@ -258,8 +258,23 @@ export default {
     waitText: "Security check in progress. Try again in 1–2 seconds.",
   },
 
+  contact: {
+    title: "Contact",
+    subtitle: "Choose how you want to contact support.",
+    emailLabel: "Email",
+    phoneLabel: "Phone",
+    sendEmail: "Send email",
+    call: "Call",
+    copy: "Copy",
+    noEmailAppTitle: "No email app found",
+    noEmailAppMsg: "Set up an email account or copy the address.",
+    noCallTitle: "Calling not supported",
+    noCallMsg: "This device cannot place calls.",
+  },
+
   common: {
     close: "Close",
+    copied: "Copied",
     loading: "Loading...",
     new: "New",
     cancel: "Cancel",

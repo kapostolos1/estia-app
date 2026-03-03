@@ -21,7 +21,7 @@ import * as SMS from "expo-sms";
 import SubscriptionBanner from "../components/SubscriptionBanner";
 import { t } from "../i18n";
 import { useLanguage } from "../i18n/LanguageProvider";
-
+import ContactModal from "../components/ContactModal";
 // -------------------- helpers --------------------
 function pad2(n) {
   return String(n).padStart(2, "0");
@@ -272,7 +272,7 @@ export default function HomeScreen({ navigation }) {
 
   // menu modal
   const [menuOpen, setMenuOpen] = useState(false);
-
+  const [contactOpen, setContactOpen] = useState(false);
   // business resolving
   const [resolvingBiz, setResolvingBiz] = useState(false);
   const [bizTries, setBizTries] = useState(0);
@@ -448,7 +448,7 @@ export default function HomeScreen({ navigation }) {
   }
   function goSupport() {
     setMenuOpen(false);
-    Alert.alert(t("menu.support"), t("support.contactText"));
+    setContactOpen(true);
   }
   function goBack() {
     setMenuOpen(false);
@@ -666,6 +666,36 @@ export default function HomeScreen({ navigation }) {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      <ContactModal
+        visible={contactOpen}
+        onClose={() => setContactOpen(false)}
+        email="estiaappointments@gmail.com"
+        phone="+306946690119"
+        appName="Estia Appointments"
+        labels={{
+          // titles
+          title: t("contact.title"),
+          subtitle: t("contact.subtitle"),
+
+          // sections
+          emailLabel: t("contact.emailLabel"),
+          phoneLabel: t("contact.phoneLabel"),
+
+          // buttons
+          sendEmail: t("contact.sendEmail"),
+          call: t("contact.call"),
+          copy: t("contact.copy"),
+          close: t("common.close"),
+
+          // alerts
+          copiedTitle: t("common.copied"),
+          noEmailAppTitle: t("contact.noEmailAppTitle"),
+          noEmailAppMsg: t("contact.noEmailAppMsg"),
+          noCallTitle: t("contact.noCallTitle"),
+          noCallMsg: t("contact.noCallMsg"),
+        }}
+      />
 
       {/* ✅ Trial Intro Modal */}
       <Modal visible={!!showTrialIntro} transparent animationType="fade" onRequestClose={() => {}}>
