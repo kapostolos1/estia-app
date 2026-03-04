@@ -12,6 +12,7 @@ import {
   Modal,
   TouchableOpacity,
   PixelRatio,
+  PanResponder,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { supabase } from "../lib/supabase";
@@ -22,6 +23,7 @@ import SubscriptionBanner from "../components/SubscriptionBanner";
 import { t } from "../i18n";
 import { useLanguage } from "../i18n/LanguageProvider";
 import ContactModal from "../components/ContactModal";
+
 // -------------------- helpers --------------------
 function pad2(n) {
   return String(n).padStart(2, "0");
@@ -97,6 +99,81 @@ function formatDateLabel(dateObj) {
   if (!dateObj) return "";
   return `${pad2(dateObj.getDate())}-${pad2(dateObj.getMonth() + 1)}-${dateObj.getFullYear()}`;
 }
+
+// ✅ NEW: date helpers for premium header + swipe
+function addDays(dateObj, deltaDays) {
+  const d = new Date(dateObj);
+  d.setDate(d.getDate() + deltaDays);
+  return d;
+}
+
+function weekdayLabel(dateObj) {
+  const arr = t("calendar.weekdayNames"); // optional i18n key
+  const isEn = t("common.lang") === "en"; // may not exist - so use robust check below
+
+  // fallback names based on device lang toggle would be better, but we keep this simple:
+  const fallbackEL = ["Κυριακή", "Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
+  const fallbackEN = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+  const names =
+    Array.isArray(arr) && arr.length === 7
+      ? arr
+      : // if translation missing, use a basic heuristic: if app has english selected, show EN
+        (t("home.tabs.today") || "").toLowerCase().includes("today")
+      ? fallbackEN
+      : fallbackEL;
+
+  return names[dateObj.getDay()] || "";
+}
+
+function monthNameLabel(dateObj) {
+  const months = t("calendar.months"); // already exists in your i18n
+  const fallbackEL = [
+    "Ιανουάριος",
+    "Φεβρουάριος",
+    "Μάρτιος",
+    "Απρίλιος",
+    "Μάιος",
+    "Ιούνιος",
+    "Ιούλιος",
+    "Αύγουστος",
+    "Σεπτέμβριος",
+    "Οκτώβριος",
+    "Νοέμβριος",
+    "Δεκέμβριος",
+  ];
+  const fallbackEN = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
+
+  const arr =
+    Array.isArray(months) && months.length === 12
+      ? months
+      : (t("home.tabs.today") || "").toLowerCase().includes("today")
+      ? fallbackEN
+      : fallbackEL;
+
+  return arr[dateObj.getMonth()] || "";
+}
+
+function formatDatePretty(dateObj) {
+  if (!dateObj) return "";
+  // e.g. "Δευτέρα 2 Μαρτίου 2026" or "Monday 2 March 2026"
+  return `${weekdayLabel(dateObj)} ${dateObj.getDate()} ${monthNameLabel(dateObj)} ${dateObj.getFullYear()}`;
+}
+
+
 
 // -------------------- Calendar Modal (same logic as NewAppointment) --------------------
 function CalendarModal({ visible, onClose, onPick, countsByDay, initialDate }) {
@@ -273,6 +350,7 @@ export default function HomeScreen({ navigation }) {
   // menu modal
   const [menuOpen, setMenuOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
+
   // business resolving
   const [resolvingBiz, setResolvingBiz] = useState(false);
   const [bizTries, setBizTries] = useState(0);
@@ -554,6 +632,18 @@ export default function HomeScreen({ navigation }) {
       .sort((x, y) => x.time.localeCompare(y.time));
   }, [appointments, pickedDate]);
 
+  // ✅ NEW: swipe day in the day modal
+  const daySwipe = useMemo(() => {
+    return PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 25 && Math.abs(g.dy) < 20,
+      onPanResponderRelease: (_, g) => {
+        if (!pickedDate) return;
+        if (g.dx < -40) setPickedDate((d) => addDays(d, +1)); // swipe left => next day
+        if (g.dx > 40) setPickedDate((d) => addDays(d, -1)); // swipe right => prev day
+      },
+    });
+  }, [pickedDate]);
+
   // -------------------- guards --------------------
   if (!ready || myRole === null) {
     return (
@@ -674,21 +764,14 @@ export default function HomeScreen({ navigation }) {
         phone="+306946690119"
         appName="Estia Appointments"
         labels={{
-          // titles
           title: t("contact.title"),
           subtitle: t("contact.subtitle"),
-
-          // sections
           emailLabel: t("contact.emailLabel"),
           phoneLabel: t("contact.phoneLabel"),
-
-          // buttons
           sendEmail: t("contact.sendEmail"),
           call: t("contact.call"),
           copy: t("contact.copy"),
           close: t("common.close"),
-
-          // alerts
           copiedTitle: t("common.copied"),
           noEmailAppTitle: t("contact.noEmailAppTitle"),
           noEmailAppMsg: t("contact.noEmailAppMsg"),
@@ -710,9 +793,7 @@ export default function HomeScreen({ navigation }) {
                 await markTrialIntroSeen();
               }}
             >
-              <Text style={styles.inviteBtnOkText}>
-                {t("trialIntro.continue") || t("common.continue") || "Συνέχεια"}
-              </Text>
+              <Text style={styles.inviteBtnOkText}>{t("trialIntro.continue") || t("common.continue") || "Συνέχεια"}</Text>
             </Pressable>
           </View>
         </View>
@@ -730,21 +811,42 @@ export default function HomeScreen({ navigation }) {
         }}
       />
 
-      {/* ✅ Day appointments list modal (scrollable) */}
+      {/* ✅ Day appointments list modal (scrollable + swipe left/right) */}
       <Modal visible={dayOpen} transparent animationType="fade" onRequestClose={() => setDayOpen(false)}>
         <Pressable style={styles.modalBackdropCenter} onPress={() => setDayOpen(false)}>
-          <Pressable style={styles.dayCard} onPress={() => {}}>
-            <Text style={styles.dayTitle}>📅 {formatDateLabel(pickedDate)}</Text>
+          <View style={styles.dayCard} {...daySwipe.panHandlers}>
+            {/* Premium header */}
+            <Text style={styles.dayTitle}>📅 {formatDatePretty(pickedDate)}</Text>
 
-            <Text style={styles.dayCount}>
-              {(t("home.dayCount") && t("home.dayCount", { count: dayAppointments.length })) ||
-                `${dayAppointments.length} ραντεβού`}
-            </Text>
+            {/* Info bar */}
+            <View style={styles.dayInfoBar}>
+              <Text style={styles.dayInfoTextLeft}>
+                {(t("home.dayInfo.total") || t("home.total") || (lang === "en" ? "Total" : "Σύνολο"))}: {dayAppointments.length}
+              </Text>
+            </View>
+
+            {/* Quick add for this day */}
+            <Pressable
+              style={[styles.addBtn, { alignSelf: "stretch", marginTop: 12, opacity: !canCreate ? 0.55 : 1 }]}
+              disabled={!canCreate}
+              onPress={() => {
+                if (!canCreate) {
+                  Alert.alert(t("subscription.expiredTitle"), t("subscription.expiredDialogText"));
+                  return;
+                }
+                setDayOpen(false);
+                navigation.navigate("NewAppointment", {
+                  prefillDate: pickedDate ? pickedDate.toISOString() : null,
+                });
+              }}
+            >
+              <Text style={styles.addText}>
+                ➕ {(t("home.addNew") || (lang === "en" ? "New" : "Νέο"))} ({formatDateLabel(pickedDate)})
+              </Text>
+            </Pressable>
 
             {dayAppointments.length === 0 ? (
-              <Text style={styles.dayEmpty}>
-                {t("home.noAppointmentsDay") || "Δεν υπάρχουν ραντεβού για αυτή την ημέρα."}
-              </Text>
+              <Text style={styles.dayEmpty}>{t("home.noAppointmentsDay") || (lang === "en" ? "No appointments for this day." : "Δεν υπάρχουν ραντεβού για αυτή την ημέρα.")}</Text>
             ) : (
               <FlatList
                 data={dayAppointments}
@@ -771,15 +873,10 @@ export default function HomeScreen({ navigation }) {
               />
             )}
 
-            <Pressable
-              style={[styles.inviteBtnCancel, styles.dayCloseBtn]}
-              onPress={() => setDayOpen(false)}
-            >
-              <Text style={styles.dayCloseText}>
-                {t("common.close") || "Close"}
-              </Text>
+            <Pressable style={[styles.inviteBtnCancel, styles.dayCloseBtn]} onPress={() => setDayOpen(false)}>
+              <Text style={styles.dayCloseText}>{t("common.close") || "Close"}</Text>
             </Pressable>
-          </Pressable>
+          </View>
         </Pressable>
       </Modal>
 
@@ -1038,7 +1135,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   calEmoji: { fontSize: 18 },
-  
+
   // Tabs
   switchRow: {
     flexDirection: "row",
@@ -1201,9 +1298,23 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
   },
-  
   dayTitle: { color: "#fff", fontSize: 18, fontWeight: "900" },
-  dayCount: { color: "#9FE6C1", marginTop: 6, fontWeight: "800" },
+
+  // ✅ NEW: Info bar styles
+  dayInfoBar: {
+    marginTop: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    backgroundColor: "rgba(0,0,0,0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(209,250,229,0.12)",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  dayInfoTextLeft: { color: "#D1FAE5", fontWeight: "900" },
+
   dayEmpty: { color: "#D1FAE5", marginTop: 10 },
 
   dayItem: {
@@ -1222,8 +1333,17 @@ const styles = StyleSheet.create({
   dayItemName: { color: "#fff", fontWeight: "900" },
   dayItemSub: { color: "#9FE6C1", marginTop: 2, fontSize: 13 },
 
+  dayCloseBtn: { marginTop: 12, flex: 0, alignSelf: "stretch" },
+  dayCloseText: { color: "#D1FAE5", fontWeight: "900", fontSize: 16 },
+
   // ✅ Calendar modal styles
-  calBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 18 },
+  calBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 18,
+  },
   calCard: {
     width: "100%",
     maxWidth: 420,
@@ -1232,16 +1352,6 @@ const styles = StyleSheet.create({
     padding: 14,
     borderWidth: 1,
     borderColor: "#0F3A27",
-  },
-  dayCloseBtn: {
-    marginTop: 12,
-    flex: 0,
-    alignSelf: "stretch",
-  },
-  dayCloseText: {
-    color: "#D1FAE5",
-    fontWeight: "900",
-    fontSize: 16,
   },
   calHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
   calTitle: { color: "#fff", fontWeight: "900", fontSize: 16 },

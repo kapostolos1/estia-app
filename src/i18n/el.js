@@ -100,7 +100,6 @@ export default {
     invalidOrUsed: "Ο κωδικός είναι λάθος ή έχει ήδη χρησιμοποιηθεί. Ζήτησε νέο κωδικό από τον ιδιοκτήτη.",
     activateFail: "Δεν μπόρεσε να ενεργοποιηθεί. Δοκίμασε νέο κωδικό.",
   },
- 
     
   details: {
     weekdays: [
@@ -283,6 +282,7 @@ export default {
   },
 
   home: {
+    dayInfo: { total: "Σύνολο" },
     dayCount: "Ραντεβού",
     noAppointmentsDay: "Δεν υπάρχουν ραντεβού για αυτή την ημέρα.",
     connectBusiness: "Σύνδεση με επιχείρηση",

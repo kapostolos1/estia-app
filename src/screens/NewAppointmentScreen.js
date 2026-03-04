@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -267,7 +267,7 @@ function CalendarModal({ visible, onClose, onPick, countsByDay, initialDate }) {
 }
 
 // ---------- screen ----------
-export default function NewAppointmentScreen({ navigation }) {
+export default function NewAppointmentScreen({ navigation, route }) {
   const { appointments, createAppointment, ready, businessId } = useAppointments();
 
   const [name, setName] = useState("");
@@ -278,7 +278,23 @@ export default function NewAppointmentScreen({ navigation }) {
   const [timeText, setTimeText] = useState(""); // HH:MM
 
   const [saving, setSaving] = useState(false);
+  const timeInputRef = useRef(null);
+  // ✅ Prefill date from HomeScreen (Quick Add / Calendar day)
+  useEffect(() => {
+    const iso = route?.params?.prefillDate;
+    if (!iso) return;
 
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return;
+
+    setDateText(ddmmyyyyFromDateObj(d));
+
+    setTimeout(() => {
+      timeInputRef.current?.focus();
+    }, 150);
+    navigation.setParams({ prefillDate: null });
+  }, [route?.params?.prefillDate]);
+  
   // calendar modal
   const [calOpen, setCalOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
@@ -440,6 +456,7 @@ export default function NewAppointmentScreen({ navigation }) {
           <View style={{ width: 130 }}>
             <Text style={styles.label}>{t("newAppointment.timeLabel")}</Text>
             <TextInput
+              ref={timeInputRef}
               value={timeText}
               onChangeText={(v) => setTimeText(formatTimeHHMM(v))}
               placeholder="1030"
@@ -459,8 +476,11 @@ export default function NewAppointmentScreen({ navigation }) {
           countsByDay={countsByDay}
           onPick={(d) => {
             setDateText(ddmmyyyyFromDateObj(d));
-          }}
-        />
+            setTimeout(() => {
+        timeInputRef.current?.focus?.();
+      }, 50);
+    }}
+  />
 
                 {/* ⬇️ Κλεισμένες ώρες */}
         {selectedDateObj && (

@@ -271,7 +271,7 @@ export default {
     noCallTitle: "Calling not supported",
     noCallMsg: "This device cannot place calls.",
   },
-
+  
   common: {
     close: "Close",
     copied: "Copied",
@@ -290,6 +290,7 @@ export default {
   },
 
   home: {
+    dayInfo: { total: "Total" },
     dayCount: "Appointments",
     noAppointmentsDay: "No appointments for this day.",
     subscriptionExpiredTitle: "Subscription expired",
