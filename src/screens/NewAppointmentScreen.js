@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   Modal,
 } from "react-native";
 import { useAppointments } from "../store/appointmentsStore";
+import { supabase } from "../lib/supabase";
 import { t } from "../i18n";
 import { weekdayFromDate } from "../utils/weekday";
 import { PixelRatio } from "react-native";
@@ -114,12 +115,11 @@ function daysInMonth(date) {
 }
 // Monday-first index (Δευ=0 ... Κυρ=6)
 function mondayFirstIndex(jsDay) {
-  // JS: 0=Sun..6=Sat -> Mon=0..Sun=6
   return (jsDay + 6) % 7;
 }
 
 function monthLabel(date) {
-  const months = t("calendar.months"); // array 12 μηνών στο i18n
+  const months = t("calendar.months"); // array 12
   const m = months?.[date.getMonth()] || "";
   return `${m} ${date.getFullYear()}`;
 }
@@ -132,22 +132,23 @@ function CalendarModal({ visible, onClose, onPick, countsByDay, initialDate }) {
     if (!visible) return;
     setCursor(startOfMonth(initialDate || new Date()));
   }, [visible, initialDate]);
+
   const fontScale = PixelRatio.getFontScale();
   const pillH = Math.max(18, Math.min(26, Math.round(18 * fontScale)));
   const pillFont = Math.max(12, Math.min(16, Math.round(12 * fontScale)));
+
   const grid = useMemo(() => {
     const first = startOfMonth(cursor);
     const dim = daysInMonth(cursor);
     const offset = mondayFirstIndex(first.getDay()); // 0..6
-    const totalCells = 42; // 6 εβδομάδες
+    const totalCells = 42; // 6 weeks
     const cells = [];
 
     for (let i = 0; i < totalCells; i++) {
-      const dayNum = i - offset + 1; // 1..dim
+      const dayNum = i - offset + 1;
       if (dayNum < 1 || dayNum > dim) {
         cells.push(null);
       } else {
-
         const d = new Date(cursor.getFullYear(), cursor.getMonth(), dayNum, 0, 0, 0, 0);
         const k = keyFromDateObj(d);
         const count = (countsByDay && countsByDay[k]) || 0;
@@ -157,19 +158,26 @@ function CalendarModal({ visible, onClose, onPick, countsByDay, initialDate }) {
     return cells;
   }, [cursor, countsByDay]);
 
-  const weekdays = t("calendar.weekdays"); // array 7
+  const weekdaysRaw = t("calendar.weekdays");
+  const weekdays = Array.isArray(weekdaysRaw) ? weekdaysRaw : ["Δ", "Τ", "Τ", "Π", "Π", "Σ", "Κ"];
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      presentationStyle="overFullScreen"
+      statusBarTranslucent
+      hardwareAccelerated
+    >
       <View style={styles.calBackdrop}>
         <View style={styles.calCard}>
           {/* Header */}
           <View style={styles.calHeader}>
             <Pressable
               style={styles.calNavBtn}
-              onPress={() =>
-                setCursor((c) => startOfMonth(new Date(c.getFullYear(), c.getMonth() - 1, 1)))
-              }
+              onPress={() => setCursor((c) => startOfMonth(new Date(c.getFullYear(), c.getMonth() - 1, 1)))}
             >
               <Text style={styles.calNavText}>‹</Text>
             </Pressable>
@@ -178,9 +186,7 @@ function CalendarModal({ visible, onClose, onPick, countsByDay, initialDate }) {
 
             <Pressable
               style={styles.calNavBtn}
-              onPress={() =>
-                setCursor((c) => startOfMonth(new Date(c.getFullYear(), c.getMonth() + 1, 1)))
-              }
+              onPress={() => setCursor((c) => startOfMonth(new Date(c.getFullYear(), c.getMonth() + 1, 1)))}
             >
               <Text style={styles.calNavText}>›</Text>
             </Pressable>
@@ -216,9 +222,7 @@ function CalendarModal({ visible, onClose, onPick, countsByDay, initialDate }) {
                   }}
                 >
                   <View style={[styles.calDayWrap, isToday && styles.calDayToday]}>
-                    <Text style={[styles.calDayNum, isToday && styles.calDayTodayText]}>
-                      {cell.dayNum}
-                    </Text>
+                    <Text style={[styles.calDayNum, isToday && styles.calDayTodayText]}>{cell.dayNum}</Text>
                   </View>
 
                   {cell.count > 0 ? (
@@ -239,8 +243,8 @@ function CalendarModal({ visible, onClose, onPick, countsByDay, initialDate }) {
                           styles.calCountText,
                           {
                             fontSize: pillFont,
-                            includeFontPadding: false, // ✅ Android fix
-                            textAlignVertical: "center", // ✅ Android fix
+                            includeFontPadding: false,
+                            textAlignVertical: "center",
                           },
                         ]}
                         numberOfLines={1}
@@ -251,14 +255,13 @@ function CalendarModal({ visible, onClose, onPick, countsByDay, initialDate }) {
                   ) : (
                     <View style={[styles.calCountEmpty, { height: pillH }]} />
                   )}
-
                 </Pressable>
               );
             })}
           </View>
 
           <Pressable style={styles.calCloseBtn} onPress={onClose}>
-            <Text style={styles.calCloseText}>{t?.("common.close") || "Κλείσιμο"}</Text>
+            <Text style={styles.calCloseText}>{t("common.close") || "Κλείσιμο"}</Text>
           </Pressable>
         </View>
       </View>
@@ -278,7 +281,27 @@ export default function NewAppointmentScreen({ navigation, route }) {
   const [timeText, setTimeText] = useState(""); // HH:MM
 
   const [saving, setSaving] = useState(false);
+
+  // ✅ refs
+  const nameInputRef = useRef(null);
+  const phoneInputRef = useRef(null);
   const timeInputRef = useRef(null);
+
+  // ✅ suggestions state
+  const [nameSug, setNameSug] = useState([]);
+  const [phoneSug, setPhoneSug] = useState([]);
+  const [showNameSug, setShowNameSug] = useState(false);
+  const [showPhoneSug, setShowPhoneSug] = useState(false);
+  const [loadingNameSug, setLoadingNameSug] = useState(false);
+  const [loadingPhoneSug, setLoadingPhoneSug] = useState(false);
+
+  // calendar modal
+  const [calOpen, setCalOpen] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+
+  const selectedDateObj = useMemo(() => parseDateOnly(dateText), [dateText]);
+  const weekdayLabel = useMemo(() => weekdayFromDate(selectedDateObj), [selectedDateObj]);
+
   // ✅ Prefill date from HomeScreen (Quick Add / Calendar day)
   useEffect(() => {
     const iso = route?.params?.prefillDate;
@@ -289,19 +312,104 @@ export default function NewAppointmentScreen({ navigation, route }) {
 
     setDateText(ddmmyyyyFromDateObj(d));
 
+    // ✅ move focus to time for premium flow
     setTimeout(() => {
-      timeInputRef.current?.focus();
+      timeInputRef.current?.focus?.();
     }, 150);
+
+    // avoid re-trigger
     navigation.setParams({ prefillDate: null });
-  }, [route?.params?.prefillDate]);
-  
-  // calendar modal
-  const [calOpen, setCalOpen] = useState(false);
-  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  }, [route?.params?.prefillDate, navigation]);
 
-  const selectedDateObj = useMemo(() => parseDateOnly(dateText), [dateText]);
+  // ✅ fetch customers (name)
+  const fetchCustomersByName = useCallback(
+    async (term) => {
+      const q = (term || "").trim();
+      if (q.length < 3) {
+        setNameSug([]);
+        return;
+      }
+      if (!businessId) return;
 
-  const weekdayLabel = useMemo(() => weekdayFromDate(selectedDateObj), [selectedDateObj]);
+      setLoadingNameSug(true);
+      try {
+        const { data, error } = await supabase
+          .from("customers")
+          .select("id, name, phone")
+          .eq("business_id", businessId)
+          .ilike("name", `%${q}%`)
+          .order("last_seen_at", { ascending: false })
+          .limit(8);
+
+        if (error) throw error;
+        setNameSug(data || []);
+      } catch {
+        setNameSug([]);
+      } finally {
+        setLoadingNameSug(false);
+      }
+    },
+    [businessId]
+  );
+
+  // ✅ fetch customers (phone)
+  const fetchCustomersByPhone = useCallback(
+    async (phoneValue) => {
+      const d = digitsOnly(phoneValue);
+      if (d.length < 5) {
+        setPhoneSug([]);
+        return;
+      }
+      if (!businessId) return;
+
+      setLoadingPhoneSug(true);
+      try {
+        const { data, error } = await supabase
+          .from("customers")
+          .select("id, name, phone")
+          .eq("business_id", businessId)
+          .ilike("phone", `${d}%`)
+          .order("last_seen_at", { ascending: false })
+          .limit(8);
+
+        if (error) throw error;
+        setPhoneSug(data || []);
+      } catch {
+        setPhoneSug([]);
+      } finally {
+        setLoadingPhoneSug(false);
+      }
+    },
+    [businessId]
+  );
+
+  // ✅ debounce name suggestions
+  useEffect(() => {
+    const q = (name || "").trim();
+    if (q.length < 3) {
+      setShowNameSug(false);
+      setNameSug([]);
+      return;
+    }
+
+    setShowNameSug(true);
+    const tmr = setTimeout(() => fetchCustomersByName(q), 250);
+    return () => clearTimeout(tmr);
+  }, [name, fetchCustomersByName]);
+
+  // ✅ debounce phone suggestions
+  useEffect(() => {
+    const d = digitsOnly(phone);
+    if (d.length < 5) {
+      setShowPhoneSug(false);
+      setPhoneSug([]);
+      return;
+    }
+
+    setShowPhoneSug(true);
+    const tmr = setTimeout(() => fetchCustomersByPhone(d), 250);
+    return () => clearTimeout(tmr);
+  }, [phone, fetchCustomersByPhone]);
 
   const countsByDay = useMemo(() => {
     const out = {};
@@ -316,33 +424,27 @@ export default function NewAppointmentScreen({ navigation, route }) {
     return out;
   }, [appointments]);
 
-    const bookedAppointments = useMemo(() => {
-      if (!selectedDateObj) return [];
+  const bookedAppointments = useMemo(() => {
+    if (!selectedDateObj) return [];
 
-      const list = (appointments || [])
-        .filter((a) => a.status !== "cancelled" && isSameDayISO(a.startsAt, selectedDateObj))
-        .map((a) => ({
-          time: formatTimeFromISO(a.startsAt),
-          name: a.name || "",
-          phone: a.phone || "",
-          note: a.note || "",
-          startsAt: a.startsAt,
-        }))
-        .sort((a, b) => a.time.localeCompare(b.time));
+    const list = (appointments || [])
+      .filter((a) => a.status !== "cancelled" && isSameDayISO(a.startsAt, selectedDateObj))
+      .map((a) => ({
+        time: formatTimeFromISO(a.startsAt),
+        name: a.name || "",
+        phone: a.phone || "",
+        note: a.note || "",
+        startsAt: a.startsAt,
+      }))
+      .sort((a, b) => a.time.localeCompare(b.time));
 
-      // Αν τυχόν υπάρχουν διπλά (σπάνιο), κρατάμε ένα ανά ώρα
-      const seen = new Set();
-      return list.filter((x) => {
-        if (seen.has(x.time)) return false;
-        seen.add(x.time);
-        return true;
-      });
-    }, [appointments, selectedDateObj]);
-
-  const bookedTimes = useMemo(() => {
-    return bookedAppointments.map((x) => x.time);
-  }, [bookedAppointments]);
-
+    const seen = new Set();
+    return list.filter((x) => {
+      if (seen.has(x.time)) return false;
+      seen.add(x.time);
+      return true;
+    });
+  }, [appointments, selectedDateObj]);
 
   async function onSave() {
     if (!ready || !businessId) {
@@ -390,6 +492,26 @@ export default function NewAppointmentScreen({ navigation, route }) {
         note: note.trim() || null,
         startsAt: dt.toISOString(),
       });
+
+      // ✅ auto-save customer (upsert)
+      try {
+        const n2 = n.trim();
+        const p2 = digitsOnly(p);
+        if (n2 && p2) {
+          const nowIso = new Date().toISOString();
+          await supabase.from("customers").upsert(
+            {
+              business_id: businessId,
+              name: n2,
+              phone: p2,
+              last_seen_at: nowIso,
+              updated_at: nowIso,
+            },
+            { onConflict: "business_id,phone" }
+          );
+        }
+      } catch {}
+
       navigation.goBack();
     } catch (e) {
       Alert.alert(t("newAppointment.errTitle"), e?.message || t("newAppointment.errTitle"));
@@ -400,27 +522,102 @@ export default function NewAppointmentScreen({ navigation, route }) {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.title}>{t("newAppointment.title")}</Text>
 
+        {/* ✅ NAME + suggestions */}
         <Text style={styles.label}>{t("newAppointment.nameLabel")}</Text>
         <TextInput
+          ref={nameInputRef}
           value={name}
-          onChangeText={setName}
+          onChangeText={(v) => setName(v)}
           placeholder={t("newAppointment.namePh")}
           placeholderTextColor="#9FE6C1"
           style={styles.input}
+          onFocus={() => {
+            const q = (name || "").trim();
+            if (q.length >= 3) setShowNameSug(true);
+          }}
+          onBlur={() => {
+            // μικρό delay για να προλάβει tap σε suggestion
+            setTimeout(() => setShowNameSug(false), 120);
+          }}
         />
 
+        {showNameSug && (
+          <View style={styles.sugBox}>
+            {loadingNameSug ? (
+              <Text style={styles.sugHint}>{t("newAppointment.sug.loading")}</Text>
+            ) : nameSug.length === 0 ? (
+              <Text style={styles.sugHint}>{t("newAppointment.sug.noMatches")}</Text>
+            ) : (
+              nameSug.map((c) => (
+                <Pressable
+                  key={c.id}
+                  style={styles.sugRow}
+                  onPress={() => {
+                    setName(c.name || "");
+                    setPhone(c.phone || "");
+                    setShowNameSug(false);
+                    setShowPhoneSug(false);
+                    setTimeout(() => phoneInputRef.current?.focus?.(), 80);
+                  }}
+                >
+                  <Text style={styles.sugTitle}>{c.name}</Text>
+                  <Text style={styles.sugSub}>{c.phone}</Text>
+                </Pressable>
+              ))
+            )}
+          </View>
+        )}
+
+        {/* ✅ PHONE + suggestions */}
         <Text style={styles.label}>{t("newAppointment.phoneLabel")}</Text>
         <TextInput
+          ref={phoneInputRef}
           value={phone}
-          onChangeText={setPhone}
+          onChangeText={(v) => setPhone(digitsOnly(v))}
           placeholder={t("newAppointment.phonePh")}
           placeholderTextColor="#9FE6C1"
           keyboardType="phone-pad"
           style={styles.input}
+          onFocus={() => {
+            const d = digitsOnly(phone);
+            if (d.length >= 5) setShowPhoneSug(true);
+          }}
+          onBlur={() => {
+            setTimeout(() => setShowPhoneSug(false), 120);
+          }}
         />
+
+        {showPhoneSug && (
+          <View style={styles.sugBox}>
+            {loadingPhoneSug ? (
+              <Text style={styles.sugHint}>{t("newAppointment.sug.loading")}</Text>
+            ) : phoneSug.length === 0 ? (
+              <Text style={styles.sugHint}>{t("newAppointment.sug.noMatches")}</Text>
+            ) : (
+              phoneSug.map((c) => (
+                <Pressable
+                  key={c.id}
+                  style={styles.sugRow}
+                  onPress={() => {
+                    setName(c.name || "");
+                    setPhone(c.phone || "");
+                    setShowPhoneSug(false);
+                    setShowNameSug(false);
+                  }}
+                >
+                  <Text style={styles.sugTitle}>{c.phone}</Text>
+                  <Text style={styles.sugSub}>{c.name}</Text>
+                </Pressable>
+              ))
+            )}
+          </View>
+        )}
 
         <Text style={styles.label}>{t("newAppointment.noteLabel")}</Text>
         <TextInput
@@ -436,7 +633,13 @@ export default function NewAppointmentScreen({ navigation, route }) {
             <View style={styles.dateLabelRow}>
               <Text style={styles.label}>{t("newAppointment.dateLabel")}</Text>
 
-              <Pressable style={styles.calIconBtn} onPress={() => setCalOpen(true)} hitSlop={10}>
+              <Pressable
+                style={styles.calIconBtn}
+                onPress={() => {
+                  setCalOpen(true);
+                }}
+                hitSlop={10}
+              >
                 <Text style={styles.calIconText}>📅</Text>
               </Pressable>
             </View>
@@ -476,13 +679,14 @@ export default function NewAppointmentScreen({ navigation, route }) {
           countsByDay={countsByDay}
           onPick={(d) => {
             setDateText(ddmmyyyyFromDateObj(d));
+            // ✅ όταν διαλέξει ημερομηνία, πάει κατευθείαν στην ώρα
             setTimeout(() => {
-        timeInputRef.current?.focus?.();
-      }, 50);
-    }}
-  />
+              timeInputRef.current?.focus?.();
+            }, 80);
+          }}
+        />
 
-                {/* ⬇️ Κλεισμένες ώρες */}
+        {/* ⬇️ Κλεισμένες ώρες */}
         {selectedDateObj && (
           <View style={styles.bookedBox}>
             <Text style={styles.bookedTitle}>
@@ -497,10 +701,7 @@ export default function NewAppointmentScreen({ navigation, route }) {
                   <Pressable
                     key={`${a.time}-${idx}`}
                     onPress={() => setSelectedAppointment(a)}
-                    style={({ pressed }) => [
-                      styles.bookedChip,
-                      pressed && { opacity: 0.85 },
-                    ]}
+                    style={({ pressed }) => [styles.bookedChip, pressed && { opacity: 0.85 }]}
                     hitSlop={8}
                   >
                     <Text style={styles.bookedChipText}>{a.time}</Text>
@@ -522,25 +723,16 @@ export default function NewAppointmentScreen({ navigation, route }) {
             <Pressable style={styles.modalBox} onPress={() => {}}>
               <Text style={styles.modalTitle}>🕒 {selectedAppointment?.time}</Text>
 
-              {!!selectedAppointment?.name && (
-                <Text style={styles.modalLine}>👤 {selectedAppointment.name}</Text>
-              )}
-
-              {!!selectedAppointment?.phone && (
-                <Text style={styles.modalLine}>📞 {selectedAppointment.phone}</Text>
-              )}
-
-              {!!selectedAppointment?.note && (
-                <Text style={styles.modalNote}>{selectedAppointment.note}</Text>
-              )}
+              {!!selectedAppointment?.name && <Text style={styles.modalLine}>👤 {selectedAppointment.name}</Text>}
+              {!!selectedAppointment?.phone && <Text style={styles.modalLine}>📞 {selectedAppointment.phone}</Text>}
+              {!!selectedAppointment?.note && <Text style={styles.modalNote}>{selectedAppointment.note}</Text>}
 
               <Pressable style={styles.modalCloseBtn} onPress={() => setSelectedAppointment(null)}>
-                <Text style={styles.modalCloseText}>Κλείσιμο</Text>
+                <Text style={styles.modalCloseText}>{t("common.close") || "Κλείσιμο"}</Text>
               </Pressable>
             </Pressable>
           </Pressable>
         </Modal>
-
 
         <Pressable
           style={[styles.saveBtn, (saving || !ready || !businessId) && { opacity: 0.7 }]}
@@ -571,6 +763,36 @@ const styles = StyleSheet.create({
     padding: 12,
   },
 
+  // ✅ suggestions (white dropdown)
+  sugBox: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    marginTop: 6,
+    overflow: "hidden",
+  },
+  sugRow: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  sugTitle: {
+    color: "#052016",
+    fontWeight: "900",
+  },
+  sugSub: {
+    color: "#374151",
+    marginTop: 2,
+  },
+  sugHint: {
+    color: "#374151",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    fontWeight: "800",
+  },
+
   dateLabelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   calIconBtn: {
     borderWidth: 1,
@@ -594,7 +816,25 @@ const styles = StyleSheet.create({
   },
   bookedTitle: { color: "#fff", fontWeight: "900", marginBottom: 6 },
   bookedEmpty: { color: "#9FE6C1" },
-  bookedTimes: { color: "#D1FAE5", lineHeight: 20 },
+
+  bookedTimesWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 10,
+  },
+  bookedChip: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+  },
+  bookedChipText: {
+    color: "#DFFFEF",
+    fontWeight: "700",
+  },
 
   saveBtn: {
     marginTop: 14,
@@ -646,13 +886,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  // ✅ today highlight
   calDayWrap: {
     width: 34,
     height: 34,
     borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#062417",
+    borderWidth: 1,
+    borderColor: "#0F3A27",
   },
   calDayToday: {
     borderWidth: 2,
@@ -672,78 +914,7 @@ const styles = StyleSheet.create({
     color: "#052016",
     fontWeight: "900",
   },
-    bookedTimesWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginTop: 10,
-  },
-
-  bookedChip: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
-  },
-
-  bookedChipText: {
-    color: "#DFFFEF",
-    fontWeight: "700",
-  },
-
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    justifyContent: "center",
-    padding: 18,
-  },
-
-  modalBox: {
-    backgroundColor: "#0f2b22",
-    borderRadius: 18,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
-  },
-
-  modalTitle: {
-    color: "#DFFFEF",
-    fontSize: 18,
-    fontWeight: "800",
-    marginBottom: 10,
-  },
-
-  modalLine: {
-    color: "#DFFFEF",
-    fontSize: 15,
-    marginBottom: 6,
-  },
-
-  modalNote: {
-    color: "#BFF5D8",
-    fontSize: 14,
-    marginTop: 8,
-    marginBottom: 12,
-    lineHeight: 20,
-  },
-
-  modalCloseBtn: {
-    alignSelf: "flex-end",
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    backgroundColor: "rgba(111, 233, 170, 0.18)",
-    borderWidth: 1,
-    borderColor: "rgba(111, 233, 170, 0.35)",
-  },
-
-  modalCloseText: {
-    color: "#DFFFEF",
-    fontWeight: "800",
-  },
-
+  calCountEmpty: { marginTop: 6 },
 
   calCloseBtn: {
     marginTop: 10,
@@ -753,6 +924,52 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   calCloseText: { color: "#D1FAE5", fontWeight: "900" },
+
+  // details modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "center",
+    padding: 18,
+  },
+  modalBox: {
+    backgroundColor: "#0f2b22",
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+  },
+  modalTitle: {
+    color: "#DFFFEF",
+    fontSize: 18,
+    fontWeight: "800",
+    marginBottom: 10,
+  },
+  modalLine: {
+    color: "#DFFFEF",
+    fontSize: 15,
+    marginBottom: 6,
+  },
+  modalNote: {
+    color: "#BFF5D8",
+    fontSize: 14,
+    marginTop: 8,
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  modalCloseBtn: {
+    alignSelf: "flex-end",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: "rgba(111, 233, 170, 0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(111, 233, 170, 0.35)",
+  },
+  modalCloseText: {
+    color: "#DFFFEF",
+    fontWeight: "800",
+  },
 });
 
 

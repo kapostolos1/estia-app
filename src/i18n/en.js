@@ -1,5 +1,6 @@
 export default {
   
+  
   calendar: {
     months: [
       "January",
@@ -159,6 +160,10 @@ export default {
     cancel: "Cancel",
   }, 
   newAppointment: {
+  sug: {
+    loading: "Loading...",
+    noMatches: "No matches found.",
+  },  
   title: "New Appointment",
   waitTitle: "Please wait",
   waitText: "Business is not loaded yet. Try again in 1–2 seconds.",

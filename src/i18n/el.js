@@ -1,4 +1,5 @@
 export default {
+ 
   calendar: {
     months: [
       "Ιανουάριος",
@@ -153,6 +154,10 @@ export default {
     cancel: "Άκυρο",
   },  
   newAppointment: {
+  sug: {
+    loading: "Φόρτωση...",
+    noMatches: "Δεν βρέθηκαν αποτελέσματα.",
+  },
   title: "Νέο Ραντεβού",
   waitTitle: "Περίμενε",
   waitText: "Δεν έχει φορτώσει ακόμα η επιχείρηση. Δοκίμασε ξανά σε 1-2 δευτερόλεπτα.",
